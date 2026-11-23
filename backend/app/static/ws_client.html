@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Live WebSocket Monitor - SaaS Platform</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 24px; }
+    .card { background: #1e293b; border-radius: 12px; padding: 20px; max-width: 800px; margin: 0 auto; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border: 1px solid #334155; }
+    h1 { margin-top: 0; font-size: 20px; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
+    .status-badge { display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
+    .status-disconnected { background: #ef4444; color: #fff; }
+    .status-connected { background: #10b981; color: #fff; }
+    input { width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #fff; margin-top: 6px; margin-bottom: 14px; font-size: 13px; font-family: monospace; }
+    button { background: #0284c7; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    button:hover { background: #0369a1; }
+    .feed { margin-top: 20px; height: 350px; overflow-y: auto; background: #0f172a; border-radius: 8px; padding: 12px; border: 1px solid #334155; font-family: monospace; font-size: 13px; }
+    .log-item { padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; animation: fadeIn 0.3s; }
+    .event-ticket_created { background: #1e3a5f; border-left: 4px solid #38bdf8; }
+    .event-ticket_updated { background: #134e4a; border-left: 4px solid #14b8a6; }
+    .event-task_created { background: #3730a3; border-left: 4px solid #818cf8; }
+    .event-task_status_changed { background: #713f12; border-left: 4px solid #f59e0b; }
+    .event-new_message { background: #3b0764; border-left: 4px solid #c084fc; }
+    .time { color: #94a3b8; font-size: 11px; margin-right: 8px; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>⚡ Live Real-Time WebSocket Monitor <span id="status" class="status-badge status-disconnected">Disconnected</span></h1>
+    <p style="color: #94a3b8; font-size: 14px;">Connect your JWT token to watch live tickets, chat messages, and task updates push in real-time!</p>
+    
+    <label style="font-size: 12px; font-weight: 600; color: #cbd5e1;">PASTE YOUR ACCESS TOKEN (from Sarah or John):</label>
+    <input type="text" id="token" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+    
+    <button onclick="toggleConnection()" id="connectBtn">Connect to Live Stream</button>
+
+    <div class="feed" id="feed">
+      <div style="color: #64748b;">(Waiting for connection... Click "Connect" above)</div>
+    </div>
+  </div>
+
+  <script>
+    let ws = null;
+
+    function toggleConnection() {
+      if (ws) {
+        ws.close();
+        return;
+      }
+
+      const token = document.getElementById('token').value.trim();
+      if (!token) {
+        alert("Please paste your access_token first!");
+        return;
+      }
+
+      const statusBadge = document.getElementById('status');
+      const connectBtn = document.getElementById('connectBtn');
+      const feed = document.getElementById('feed');
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/api/v1/ws/notifications?token=${encodeURIComponent(token)}`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        statusBadge.textContent = "Connected & Listening 🟢";
+        statusBadge.className = "status-badge status-connected";
+        connectBtn.textContent = "Disconnect";
+        feed.innerHTML = `<div style="color: #10b981;">[${new Date().toLocaleTimeString()}] ✅ Connected to company live stream! Waiting for events...</div>`;
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const parsed = JSON.parse(event.data);
+          const div = document.createElement('div');
+          div.className = `log-item event-${parsed.event || 'default'}`;
+          div.innerHTML = `<span class="time">[${new Date().toLocaleTimeString()}]</span> <strong>[${parsed.event.toUpperCase()}]</strong>: ${JSON.stringify(parsed.data, null, 2)}`;
+          feed.insertBefore(div, feed.firstChild);
+        } catch (e) {
+          const div = document.createElement('div');
+          div.className = 'log-item';
+          div.innerHTML = `<span class="time">[${new Date().toLocaleTimeString()}]</span> ${event.data}`;
+          feed.insertBefore(div, feed.firstChild);
+        }
+      };
+
+      ws.onclose = () => {
+        statusBadge.textContent = "Disconnected";
+        statusBadge.className = "status-badge status-disconnected";
+        connectBtn.textContent = "Connect to Live Stream";
+        const div = document.createElement('div');
+        div.style.color = "#ef4444";
+        div.innerHTML = `[${new Date().toLocaleTimeString()}] ❌ Disconnected from server.`;
+        feed.insertBefore(div, feed.firstChild);
+        ws = null;
+      };
+
+      ws.onerror = (err) => {
+        console.error("WebSocket error:", err);
+      };
+    }
+  </script>
+</body>
+</html>

@@ -1,17 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { Ticket, TicketMessage, TicketPriority, TicketStatus, User } from '../types';
+import { Ticket, TicketPriority, TicketStatus, User } from '../types';
 import { 
   Plus, 
   MessageSquare, 
   Lock, 
   Clock, 
   User as UserIcon, 
-  CheckCircle2, 
   Send,
-  Filter,
-  AlertCircle,
   Paperclip,
   Download
 } from 'lucide-react';

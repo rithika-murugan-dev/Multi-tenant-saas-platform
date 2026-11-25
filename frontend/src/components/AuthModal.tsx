@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Building2, ShieldCheck, ArrowRight, UserPlus, LogIn } from 'lucide-react';
+import { Building2, UserPlus, LogIn } from 'lucide-react';
 
 export const AuthModal: React.FC = () => {
   const { login, register } = useAuth();

@@ -4,10 +4,7 @@ import { KanbanBoard, Task, TaskPriority, TaskStatus, Ticket, User } from '../ty
 import { 
   Plus, 
   Clock, 
-  CheckCircle2, 
-  ArrowRight, 
   User as UserIcon, 
-  Trash2,
   Link as LinkIcon
 } from 'lucide-react';
 
@@ -88,6 +85,15 @@ export const KanbanView: React.FC = () => {
     { id: 'in_review', title: 'In Review', color: 'border-indigo-400', list: board?.in_review || [] },
     { id: 'done', title: 'Completed', color: 'border-emerald-500', list: board?.done || [] },
   ];
+
+  if (loading && !board) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center text-slate-400 text-sm">
+        <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+        Loading operations board...
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">

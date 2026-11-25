@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, CheckCircle2, AlertTriangle, MessageSquare, X } from 'lucide-react';
+import { Bell, CheckCircle2, AlertTriangle, X } from 'lucide-react';
 
 export interface ToastNotification {
   id: string;

@@ -2,15 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { AnalyticsOverview } from '../types';
 import { 
-  BarChart3, 
   Clock, 
   ShieldCheck, 
-  CheckCircle2, 
   AlertTriangle, 
   TrendingUp, 
   Award,
-  Users,
-  Flame,
   Briefcase
 } from 'lucide-react';
 

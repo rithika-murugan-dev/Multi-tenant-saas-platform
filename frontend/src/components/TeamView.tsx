@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { User, UserRole } from '../types';
-import { Users, UserPlus, Shield, Mail, CheckCircle } from 'lucide-react';
+import { UserPlus, Mail } from 'lucide-react';
 
 export const TeamView: React.FC = () => {
   const { user } = useAuth();

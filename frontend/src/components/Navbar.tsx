@@ -6,8 +6,6 @@ import {
   Kanban, 
   BarChart3,
   LogOut, 
-  User, 
-  Activity,
   Users
 } from 'lucide-react';
 

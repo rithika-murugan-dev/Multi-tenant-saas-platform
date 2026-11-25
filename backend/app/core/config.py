@@ -3,7 +3,6 @@ from typing import List, Optional, Union
 from pydantic import AnyHttpUrl, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Always load the .env file located inside the backend/ directory
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 ENV_FILE_PATH = BACKEND_DIR / ".env"
 
@@ -39,6 +38,13 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: Optional[str] = None
     EMAILS_FROM_EMAIL: Optional[str] = None
     EMAILS_FROM_NAME: str = "WorkFlow Pro Support"
+
+    # AWS S3 File Storage
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+    AWS_REGION: str = "us-east-1"
+    AWS_S3_BUCKET_NAME: Optional[str] = None
+    LOCAL_UPLOADS_DIR: Path = BACKEND_DIR / "uploads"
 
     @computed_field
     @property

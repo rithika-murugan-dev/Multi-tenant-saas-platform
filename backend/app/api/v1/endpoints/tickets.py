@@ -1,12 +1,16 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.api.deps import get_current_tenant, get_current_user, get_db
+from app.core.config import settings
+from app.core.s3 import storage
 from app.core.websockets import ws_manager
+from app.models.attachment import TicketAttachment
 from app.models.tenant import Tenant
 from app.models.ticket import (
     MessageType,
@@ -17,6 +21,7 @@ from app.models.ticket import (
 )
 from app.models.user import User, UserRole
 from app.schemas.ticket import (
+    TicketAttachmentOut,
     TicketCreate,
     TicketDetailOut,
     TicketMessageCreate,
@@ -99,7 +104,6 @@ async def create_ticket(
     )
     created_ticket = result.scalar_one()
 
-    # Real-time WebSocket broadcast to organization
     await ws_manager.broadcast_to_tenant(
         tenant_id=str(tenant.id),
         event_type="ticket_created",
@@ -152,7 +156,7 @@ async def list_tickets(
 @router.get(
     "/{ticket_id}",
     response_model=TicketDetailOut,
-    summary="Get ticket details and conversation thread",
+    summary="Get ticket details, conversation thread & attachments",
 )
 async def get_ticket(
     ticket_id: uuid.UUID,
@@ -166,6 +170,7 @@ async def get_ticket(
             selectinload(Ticket.customer),
             selectinload(Ticket.assigned_agent),
             selectinload(Ticket.messages).selectinload(TicketMessage.author),
+            selectinload(Ticket.attachments).selectinload(TicketAttachment.uploader),
         )
         .where(Ticket.id == ticket_id, Ticket.tenant_id == tenant.id)
     )
@@ -190,6 +195,20 @@ async def get_ticket(
             m for m in ticket.messages if m.message_type == MessageType.PUBLIC_REPLY
         ]
 
+    attachments_out = [
+        TicketAttachmentOut(
+            id=att.id,
+            ticket_id=att.ticket_id,
+            uploader=att.uploader,
+            filename=att.filename,
+            file_size=att.file_size,
+            content_type=att.content_type,
+            download_url=storage.generate_download_url(att.s3_key),
+            created_at=att.created_at,
+        )
+        for att in ticket.attachments
+    ]
+
     return TicketDetailOut(
         id=ticket.id,
         tenant_id=ticket.tenant_id,
@@ -205,6 +224,7 @@ async def get_ticket(
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
         messages=visible_messages,
+        attachments=attachments_out,
     )
 
 
@@ -276,7 +296,6 @@ async def update_ticket(
     )
     fresh_ticket = fresh_ticket_res.scalar_one()
 
-    # Real-time WebSocket broadcast
     await ws_manager.broadcast_to_tenant(
         tenant_id=str(tenant.id),
         event_type="ticket_updated",
@@ -351,7 +370,6 @@ async def post_ticket_message(
     )
     saved_msg = msg_result.scalar_one()
 
-    # Real-time WebSocket: Push message to the ticket chat room
     await ws_manager.broadcast_to_ticket(
         ticket_id=str(ticket.id),
         event_type="new_message",
@@ -366,3 +384,106 @@ async def post_ticket_message(
     )
 
     return saved_msg
+
+
+# ==========================================
+# Cloud File Attachments (AWS S3)
+# ==========================================
+
+@router.post(
+    "/{ticket_id}/attachments",
+    response_model=TicketAttachmentOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload a file or photo attachment to a ticket (AWS S3)",
+)
+async def upload_ticket_attachment(
+    ticket_id: uuid.UUID,
+    file: UploadFile = File(...),
+    tenant: Tenant = Depends(get_current_tenant),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Uploads a file (photo, PDF, diagnostic logs) to AWS S3 and links it to the ticket.
+    """
+    # 1. Verify ticket belongs to tenant
+    result = await db.execute(
+        select(Ticket).where(Ticket.id == ticket_id, Ticket.tenant_id == tenant.id)
+    )
+    ticket = result.scalar_one_or_none()
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ticket not found.",
+        )
+
+    # Customers can only upload to their own tickets
+    if current_user.role == UserRole.CUSTOMER and ticket.customer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this ticket.",
+        )
+
+    # 2. Read file bytes and size
+    file_bytes = await file.read()
+    file_size = len(file_bytes)
+    content_type = file.content_type or "application/octet-stream"
+
+    # Enforce 15MB limit
+    if file_size > 15 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size exceeds maximum limit of 15MB.",
+        )
+
+    # 3. Upload to AWS S3 (or local fallback)
+    attachment_uuid = uuid.uuid4()
+    s3_key = f"tenants/{tenant.id}/tickets/{ticket.id}/{attachment_uuid}_{file.filename}"
+    storage.upload_file(file_bytes, s3_key, content_type)
+
+    # 4. Save record in database
+    attachment = TicketAttachment(
+        id=attachment_uuid,
+        tenant_id=tenant.id,
+        ticket_id=ticket.id,
+        uploader_id=current_user.id,
+        filename=file.filename,
+        file_size=file_size,
+        content_type=content_type,
+        s3_key=s3_key,
+    )
+    db.add(attachment)
+    await db.flush()
+
+    download_url = storage.generate_download_url(s3_key)
+
+    # Re-fetch with uploader loaded
+    att_res = await db.execute(
+        select(TicketAttachment)
+        .options(selectinload(TicketAttachment.uploader))
+        .where(TicketAttachment.id == attachment.id)
+    )
+    saved_att = att_res.scalar_one()
+
+    return TicketAttachmentOut(
+        id=saved_att.id,
+        ticket_id=saved_att.ticket_id,
+        uploader=saved_att.uploader,
+        filename=saved_att.filename,
+        file_size=saved_att.file_size,
+        content_type=saved_att.content_type,
+        download_url=download_url,
+        created_at=saved_att.created_at,
+    )
+
+
+@router.get(
+    "/attachments/download/{filename}",
+    include_in_schema=False,
+    summary="Download local attachment fallback",
+)
+async def download_local_attachment(filename: str):
+    file_path = settings.LOCAL_UPLOADS_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Attachment file not found.")
+    return FileResponse(file_path, filename=filename)

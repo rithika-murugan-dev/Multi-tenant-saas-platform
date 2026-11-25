@@ -36,6 +36,19 @@ class TicketMessageOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class TicketAttachmentOut(BaseModel):
+    id: uuid.UUID
+    ticket_id: uuid.UUID
+    uploader: UserSummary
+    filename: str
+    file_size: int
+    content_type: str
+    download_url: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class TicketCreate(BaseModel):
     title: str = Field(..., min_length=3, max_length=200)
     description: str = Field(..., min_length=5)
@@ -75,3 +88,4 @@ class TicketOut(BaseModel):
 
 class TicketDetailOut(TicketOut):
     messages: List[TicketMessageOut] = []
+    attachments: List[TicketAttachmentOut] = []

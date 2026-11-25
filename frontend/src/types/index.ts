@@ -40,6 +40,17 @@ export interface TicketMessage {
   created_at: string;
 }
 
+export interface TicketAttachment {
+  id: string;
+  ticket_id: string;
+  uploader: UserSummary;
+  filename: string;
+  file_size: number;
+  content_type: string;
+  download_url: string;
+  created_at: string;
+}
+
 export interface Ticket {
   id: string;
   tenant_id: string;
@@ -55,6 +66,7 @@ export interface Ticket {
   created_at: string;
   updated_at: string;
   messages?: TicketMessage[];
+  attachments?: TicketAttachment[];
 }
 
 export type TaskStatus = 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled';

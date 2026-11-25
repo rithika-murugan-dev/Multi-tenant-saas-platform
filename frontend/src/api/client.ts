@@ -127,6 +127,20 @@ export const api = {
         body: JSON.stringify({ content, message_type }),
       });
     },
+    uploadAttachment: async (ticketId: string, file: File) => {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch(`${API_BASE}/tickets/${ticketId}/attachments`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!response.ok) {
+        throw new Error('Failed to upload attachment');
+      }
+      return response.json();
+    },
   },
 
   tasks: {

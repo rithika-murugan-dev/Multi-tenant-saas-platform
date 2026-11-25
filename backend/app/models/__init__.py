@@ -11,6 +11,7 @@ from app.models.ticket import (
     MessageType,
 )
 from app.models.task import Task, TaskStatus, TaskPriority
+from app.models.attachment import TicketAttachment
 
 __all__ = [
     "Base",
@@ -28,4 +29,5 @@ __all__ = [
     "Task",
     "TaskStatus",
     "TaskPriority",
+    "TicketAttachment",
 ]

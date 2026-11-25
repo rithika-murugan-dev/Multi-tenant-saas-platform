@@ -11,6 +11,7 @@ from app.models.base import TenantMixin, TimestampMixin
 if TYPE_CHECKING:
     from app.models.tenant import Tenant
     from app.models.user import User
+    from app.models.attachment import TicketAttachment
 
 
 class TicketStatus(str, enum.Enum):
@@ -101,6 +102,12 @@ class Ticket(Base, TenantMixin, TimestampMixin):
         back_populates="ticket",
         cascade="all, delete-orphan",
         order_by="TicketMessage.created_at",
+    )
+    attachments: Mapped[List["TicketAttachment"]] = relationship(
+        "TicketAttachment",
+        back_populates="ticket",
+        cascade="all, delete-orphan",
+        order_by="TicketAttachment.created_at",
     )
 
     def __repr__(self) -> str:
